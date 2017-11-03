@@ -203,7 +203,9 @@ public class FailedNodeWatchdogExtension extends AbstractH2OExtension {
     }
 
     private static boolean isTimeoutExceeded(H2ONode client, long timeout) {
-        return (System.currentTimeMillis() - client._last_heard_from) >= timeout;
+        long l = System.currentTimeMillis();
+        Log.info("Current: " + l + ", last heard from " + client._last_heard_from + ", difference: " + (l - client._last_heard_from) );
+        return (l - client._last_heard_from) >= timeout;
     }
 
     /**

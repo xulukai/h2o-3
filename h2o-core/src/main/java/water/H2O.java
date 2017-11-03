@@ -2159,7 +2159,7 @@ final public class H2O {
   public static H2ONode reportClient(H2ONode client){
     H2ONode oldClient = CLIENTS_MAP.put(client.getIpPortString(), client);
     if(oldClient == null){
-      Log.info("New client discovered at " + client);
+      Log.info("New client discovered at " + client + " last heard from " + client._last_heard_from);
     }
     return oldClient;
   }
