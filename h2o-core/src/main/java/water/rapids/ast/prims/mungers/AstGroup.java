@@ -18,6 +18,7 @@ import water.util.IcedHashMap;
 import water.util.Log;
 
 import java.util.Arrays;
+import java.util.Iterator;
 
 /**
  * GroupBy
@@ -462,26 +463,52 @@ public class AstGroup extends AstPrimitive {
       G gWork = new G(_gbCols.length, _aggs); // Working Group
       G gOld = null;                   // Existing Group to be filled in
       Futures future = new Futures();
+      AppendableVec[] avs=null;  // initialized later
+
       for (int row = 0; row < cs[0]._len; row++) {
         // Find the Group being worked on
         gWork.fill(row, cs, _gbCols);            // Fill the worker Group for the hashtable lookup
         if (gs.putIfAbsent(gWork, "") == null) { // Insert if not absent (note: no race, no need for atomic)
           gOld = gWork;                          // Inserted 'gWork' into table
           gWork = new G(_gbCols.length, _aggs);   // need entirely new G
+          avs = newChunkInit(gOld._myChunk);
         } else gOld = gs.getk(gWork);            // Else get existing group
 
         for (int i = 0; i < _aggs.length; i++) // Accumulate aggregate reductions
           _aggs[i].op(gOld._dss, gOld._ns, i, cs[_aggs[i]._col].atd(row), gOld._myChunk);
+
       }
 
-        for (int i = 0; i < _aggs.length; i++) {
-          if (gOld._myChunk[i]._len == 0) // quit right away if empty
-            break;  
+      finishChunkProcess(avs, future, gs);  // store all the group info into frames
 
-          gOld._myChunk[i].close(future);
-        }
       // This is a racy update into the node-local shared table of groups
       reduce(gs);               // Atomically merge Group stats
+    }
+
+    public void finishChunkProcess(AppendableVec[] avs, Futures fs, IcedHashMap<G, String> gs) {
+      if (avs==null)
+        return;
+      for (Iterator<G> it = gs.keySet().iterator(); it.hasNext(); ) {
+        G oneGroup = it.next(); // loop through all groups
+        int colNumber = _aggs.length;
+        Vec[] tempVecs = new Vec[colNumber];
+        for (int i =0; i < colNumber; i++) { // make a frame out of NewChunks
+          tempVecs[i] = avs[i].layout_and_close(fs);
+        }
+        oneGroup._groupFrames = new Frame(tempVecs);
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // Initialize the NewChunk properly with AppendableVec before writing goup data
+    // into it.
+    public AppendableVec[] newChunkInit(NewChunk[] myChunk) {
+      AppendableVec[] avs = new AppendableVec[myChunk.length];
+      for (int i=0; i < myChunk.length; i++) {
+        avs[i] = new AppendableVec(Vec.newKey(), Vec.T_NUM);
+        myChunk[i] = new NewChunk(avs[i],0); // remember to close this chunk when done writing.
+      }
+      return avs;
     }
 
     // Racy update on a subtle path: reduction is always single-threaded, but
@@ -514,7 +541,7 @@ public class AstGroup extends AstPrimitive {
 
     public final double _dss[][];      // Aggregates: usually sum or sum*2
     public final long _ns[];         // row counts per aggregate, varies by NA handling and column
-    public Vec[] _myVecs;             // vectors that store the inputs per group
+    public Frame _groupFrames;             // vectors that store the inputs per group
     public NewChunk[] _myChunk;        // new chunks to store values belonging to this group
 
     public G(int ncols, AGG[] aggs) {
@@ -523,13 +550,13 @@ public class AstGroup extends AstPrimitive {
       int len = aggs == null ? 0 : aggs.length;
       _dss = new double[len][];
       _ns = new long[len];
-      _myVecs = new Vec[ncols];
+      _groupFrames = new Frame();
       _myChunk = new NewChunk[ncols];
 
       for (int i = 0; i < len; i++) {
         _dss[i] = aggs[i].initVal();
-        AppendableVec av = new AppendableVec(Vec.newKey(), Vec.T_NUM);
-        _myChunk[i] = new NewChunk(av,0); // remember to close this chunk when done writing.
+//        AppendableVec av = new AppendableVec(Vec.newKey(), Vec.T_NUM);
+//        _myChunk[i] = new NewChunk(av,0); // remember to close this chunk when done writing.
       }
     }
 
