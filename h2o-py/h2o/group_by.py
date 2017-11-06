@@ -194,6 +194,19 @@ class GroupBy(object):
         return self._add_agg("mode", col, na)
 
 
+    def median(self, col=None, na="all"):
+        """
+        Calculate the median of each column specified in col for each group of a GroupBy object.  If no col is given,
+        compute the median among all numeric columns other than those being grouped on.
+
+        :param col: col can be None (default), a column name (str) or an index (int) of a single column,  or a
+            list for multiple columns
+        :param str na:  one of 'rm', 'ignore' or 'all' (default).
+        :return: the original GroupBy object (self), for ease of constructing chained operations.
+        """
+        return self._add_agg("median", col, na)
+
+
     @property
     def frame(self):
         """

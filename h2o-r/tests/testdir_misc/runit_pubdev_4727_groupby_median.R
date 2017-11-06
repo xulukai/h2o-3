@@ -16,7 +16,7 @@ test <- function(conn) {
   browser()
   column_names <- names(df.hex)
 
-  aggregated_median <- h2o.group_by(data = df.hex, by = column_names[1:2], median(column_names[3:5]), gb.control=list(na.methods="rm"))
+  aggregated_median <- h2o.group_by(data = df.hex, by = column_names[1:2], mean(column_names[3:length(column_names)]), gb.control=list(na.methods="rm"))
   r_medium <- sapply(as.data.frame(aggregated_median)[,3], median)
   checkEqualsNumeric(r_medium, aggregated_median)  # compare R and h2o.groupby answers
 }

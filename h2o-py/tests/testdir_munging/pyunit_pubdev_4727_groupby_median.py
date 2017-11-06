@@ -29,8 +29,9 @@ def group_by_all():
     python_lists = np.random.randint(-5,5, (row_num, col_num))  # random lists
     # make H2O frame out of random list
     h2oframe = h2o.H2OFrame(python_obj=python_lists, column_types=["enum","int"], column_names=["factors", "numerics"])
-    groupedMean = h2oframe.group_by(["factors"]).mean(na='rm')
-    print(groupedMean.get_frame()[0,0])
+    groupedMedian = h2oframe.group_by(["factors"]).median(na='rm')
+    print(groupedMedian.get_frame()[0,0])
+
     # find median without NAs in frame
     h2oMedian = h2oframe.median(na_rm=True)
     assert_is_type(h2oMedian, list)
