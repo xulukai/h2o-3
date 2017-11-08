@@ -200,9 +200,15 @@ public class AstGroup extends AstPrimitive {
       public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         // basically rbind the two frames into one.  Need to make sure only one thread is executing this at one time
         if (my1Frame.numRows() > 0 && my0Frame.numRows() > 0) { // rbind only needed when both frames are non zero
-          String tree = "(rbind my0Frame my1Frame)";
+          Key<Frame> frame0Key = my0Frame._key;
+          String tree = "(rbind "+frame0Key.toString()+" "+ my1Frame._key.toString()+")";
+          DKV.put(my0Frame);
+          DKV.put(my1Frame);
           Val val = Rapids.exec(tree);
           my0Frame = val.getFrame();
+          my0Frame._key = frame0Key;
+          DKV.remove(my0Frame._key);
+          DKV.remove(my1Frame._key);
         } else {
           if (my1Frame.numRows() > 0) {
             my0Frame = my1Frame;  //
@@ -499,8 +505,8 @@ public class AstGroup extends AstPrimitive {
         int colNumber = _aggs.length;
         for (int i =0; i < colNumber; i++) { // make a frame out of NewChunks
           oneGroup._myChunk[i].close(0, fs);
-          Vec tempVecs = oneGroup._av[i].layout_and_close(fs);
-          oneGroup._groupFrames[i] = new Frame(tempVecs); // one Frame per column per group
+          Vec[] tempVecs = {oneGroup._av[i].layout_and_close(fs)};
+          oneGroup._groupFrames[i] = new Frame(Key.<Frame>make(), tempVecs, true); // one Frame per column per group
         }
       }
     }
