@@ -1,11 +1,10 @@
 package water.rapids.ast.prims.mungers;
 
-import water.Futures;
-import water.H2O;
-import water.Iced;
-import water.MRTask;
+import water.*;
 import water.fvec.*;
 import water.rapids.Env;
+import water.rapids.Merge;
+import water.rapids.Rapids;
 import water.rapids.Val;
 import water.rapids.ast.AstPrimitive;
 import water.rapids.ast.AstRoot;
@@ -44,12 +43,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         d0s[0] += d1s[0];
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         return ds[0];
       }
     },
@@ -60,12 +59,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         d0s[0] += d1s[0];
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         return ds[0] / n;
       }
     },
@@ -76,12 +75,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         d0s[0] += d1s[0];
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         return ds[0];
       }
     },
@@ -92,12 +91,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         d0s[0] += d1s[0];
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         return ds[0];
       }
     },
@@ -109,12 +108,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         ArrayUtils.add(d0s, d1s);
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         double numerator = ds[0] - ds[1] * ds[1] / n;
         if (Math.abs(numerator) < 1e-5) numerator = 0;
         return numerator / (n - 1);
@@ -133,12 +132,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         ArrayUtils.add(d0s, d1s);
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         double numerator = ds[0] - ds[1] * ds[1] / n;
         if (Math.abs(numerator) < 1e-5) numerator = 0;
         return Math.sqrt(numerator / (n - 1));
@@ -156,12 +155,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         op(d0s, d1s[0], null);
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         return ds[0];
       }
 
@@ -177,12 +176,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         op(d0s, d1s[0], null);
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         return ds[0];
       }
 
@@ -198,20 +197,31 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
-        int chunkLen = my1Chunk._len;
-        for (int index=0; index<chunkLen; index++) {
-          my0Chunk.addNum(my1Chunk.atd(index));
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
+        // basically rbind the two frames into one.  Need to make sure only one thread is executing this at one time
+        if (my1Frame.numRows() > 0 && my0Frame.numRows() > 0) { // rbind only needed when both frames are non zero
+          String tree = "(rbind my0Frame my1Frame)";
+          Val val = Rapids.exec(tree);
+          my0Frame = val.getFrame();
+        } else {
+          if (my1Frame.numRows() > 0) {
+            my0Frame = my1Frame;  //
+          }
         }
       }
 
       // Median is the middle element of a sorted column or the mean of the two middle elements for even row number.
+      // Our sort will put all NA rows at the front of the column.
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
-        Frame tempFrame = (new Frame(myChunk.vec())).sort(new int[]{0});
-        long totalRows = tempFrame.numRows();
-        long midRow = Math.round(totalRows*0.5);
-        return totalRows%2==0?0.5*(tempFrame.vec(0).at(midRow-1)+tempFrame.vec(0).at(midRow)):
+      public double postPass(double ds[], long n, Frame myFrame) {
+        long totalRows = myFrame.numRows();
+        long midRow = totalRows/2;
+        Frame tempFrame = Merge.sort(myFrame, new int[]{0});
+
+        if (Double.isNaN(tempFrame.vec(0).at(midRow)))  // return NaN if middle value is NaN
+          return Double.NaN;
+
+        return totalRows%2==0?0.5*(tempFrame.vec(0).at(midRow-1)+ tempFrame.vec(0).at(midRow)):
                 tempFrame.vec(0).at(midRow); // mean of two middle ones for even row number.
       }
 
@@ -227,12 +237,12 @@ public class AstGroup extends AstPrimitive {
       }
 
       @Override
-      public void atomic_op(double[] d0s, double[] d1s, NewChunk my0Chunk, Chunk my1Chunk) {
+      public void atomic_op(double[] d0s, double[] d1s, Frame my0Frame, Frame my1Frame) {
         ArrayUtils.add(d0s, d1s);
       }
 
       @Override
-      public double postPass(double ds[], long n, Chunk myChunk) {
+      public double postPass(double ds[], long n, Frame myFrame) {
         return ArrayUtils.maxIndex(ds);
       }
 
@@ -244,9 +254,9 @@ public class AstGroup extends AstPrimitive {
 
     public abstract void op(double[] d0, double d1, NewChunk myChunk); // only needed for median
 
-    public abstract void atomic_op(double[] d0, double[] d1, NewChunk my0Chunk, Chunk my1Chunk);
+    public abstract void atomic_op(double[] d0, double[] d1, Frame my0Frame, Frame my1Frame);
 
-    public abstract double postPass(double ds[], long n, Chunk myChunk);
+    public abstract double postPass(double ds[], long n, Frame myFrame);
 
     public double[] initVal(int maxx) {
       return new double[]{0};
@@ -340,7 +350,7 @@ public class AstGroup extends AstPrimitive {
           for (j = 0; j < g._gs.length; j++) // The Group Key, as a row
             ncs[j].addNum(g._gs[j]);
           for (int a = 0; a < aggs.length; a++)
-            ncs[j++].addNum(aggs[a]._fcn.postPass(g._dss[a], g._ns[a], g._myChunk[a]));
+            ncs[j++].addNum(aggs[a]._fcn.postPass(g._dss[a], g._ns[a], g._groupFrames[a]));
         }
       }
     };
@@ -428,7 +438,7 @@ public class AstGroup extends AstPrimitive {
 
     // Atomically update the array pair {dss[i],ns[i]} with the pair {d1,n1}.
     // Same as op() above, but called racily and updates atomically.
-    public void atomic_op(double[][] d0ss, long[] n0s, NewChunk[] my0Chunk, int i, double[] d1s, long n1, Chunk my1Chunk) {
+    public void atomic_op(double[][] d0ss, long[] n0s, Frame[] my0Chunk, int i, double[] d1s, long n1, Frame my1Chunk) {
       synchronized (d0ss[i]) {
         _fcn.atomic_op(d0ss[i], d1s, my0Chunk[i], my1Chunk);
         n0s[i] += n1;
@@ -461,9 +471,8 @@ public class AstGroup extends AstPrimitive {
       // Groups found in this Chunk
       IcedHashMap<G, String> gs = new IcedHashMap<>();
       G gWork = new G(_gbCols.length, _aggs); // Working Group
-      G gOld = null;                   // Existing Group to be filled in
+      G gOld;                   // Existing Group to be filled in
       Futures future = new Futures();
-      AppendableVec[] avs=null;  // initialized later
 
       for (int row = 0; row < cs[0]._len; row++) {
         // Find the Group being worked on
@@ -471,7 +480,6 @@ public class AstGroup extends AstPrimitive {
         if (gs.putIfAbsent(gWork, "") == null) { // Insert if not absent (note: no race, no need for atomic)
           gOld = gWork;                          // Inserted 'gWork' into table
           gWork = new G(_gbCols.length, _aggs);   // need entirely new G
-          avs = newChunkInit(gOld._myChunk);
         } else gOld = gs.getk(gWork);            // Else get existing group
 
         for (int i = 0; i < _aggs.length; i++) // Accumulate aggregate reductions
@@ -479,36 +487,22 @@ public class AstGroup extends AstPrimitive {
 
       }
 
-      finishChunkProcess(avs, future, gs);  // store all the group info into frames
+      finishChunkProcess(future, gs);  // store all the group chunks info into frames
 
       // This is a racy update into the node-local shared table of groups
       reduce(gs);               // Atomically merge Group stats
     }
 
-    public void finishChunkProcess(AppendableVec[] avs, Futures fs, IcedHashMap<G, String> gs) {
-      if (avs==null)
-        return;
+    public void finishChunkProcess(Futures fs, IcedHashMap<G, String> gs) {
       for (Iterator<G> it = gs.keySet().iterator(); it.hasNext(); ) {
         G oneGroup = it.next(); // loop through all groups
         int colNumber = _aggs.length;
-        Vec[] tempVecs = new Vec[colNumber];
         for (int i =0; i < colNumber; i++) { // make a frame out of NewChunks
-          tempVecs[i] = avs[i].layout_and_close(fs);
+          oneGroup._myChunk[i].close(0, fs);
+          Vec tempVecs = oneGroup._av[i].layout_and_close(fs);
+          oneGroup._groupFrames[i] = new Frame(tempVecs); // one Frame per column per group
         }
-        oneGroup._groupFrames = new Frame(tempVecs);
       }
-    }
-
-    // --------------------------------------------------------------------------
-    // Initialize the NewChunk properly with AppendableVec before writing goup data
-    // into it.
-    public AppendableVec[] newChunkInit(NewChunk[] myChunk) {
-      AppendableVec[] avs = new AppendableVec[myChunk.length];
-      for (int i=0; i < myChunk.length; i++) {
-        avs[i] = new AppendableVec(Vec.newKey(), Vec.T_NUM);
-        myChunk[i] = new NewChunk(avs[i],0); // remember to close this chunk when done writing.
-      }
-      return avs;
     }
 
     // Racy update on a subtle path: reduction is always single-threaded, but
@@ -525,11 +519,9 @@ public class AstGroup extends AstPrimitive {
         if (_gss.putIfAbsent(rg, "") != null) {
           G lg = _gss.getk(rg);
           for (int i = 0; i < _aggs.length; i++)  // copy arrays over or chunks over, one column at a time
-            _aggs[i].atomic_op(lg._dss, lg._ns, lg._myChunk, i, rg._dss[i], rg._ns[i], rg._myChunk[i]); // Need to atomically merge groups here
+            _aggs[i].atomic_op(lg._dss, lg._ns, lg._groupFrames, i, rg._dss[i], rg._ns[i], rg._groupFrames[i]); // Need to atomically merge groups here
         }
     }
-
-
   }
 
   // Groups!  Contains a Group Key - an array of doubles (often just 1 entry
@@ -541,8 +533,10 @@ public class AstGroup extends AstPrimitive {
 
     public final double _dss[][];      // Aggregates: usually sum or sum*2
     public final long _ns[];         // row counts per aggregate, varies by NA handling and column
-    public Frame _groupFrames;             // vectors that store the inputs per group
     public NewChunk[] _myChunk;        // new chunks to store values belonging to this group
+    public AppendableVec[] _av;
+    Key[] _keys;
+    public Frame[] _groupFrames;
 
     public G(int ncols, AGG[] aggs) {
       _gs = new double[ncols];
@@ -550,13 +544,15 @@ public class AstGroup extends AstPrimitive {
       int len = aggs == null ? 0 : aggs.length;
       _dss = new double[len][];
       _ns = new long[len];
-      _groupFrames = new Frame();
       _myChunk = new NewChunk[ncols];
+      _av = new AppendableVec[ncols];
+      _groupFrames = new Frame[ncols];
+      _keys = Vec.VectorGroup.VG_LEN1.addVecs(ncols);
 
       for (int i = 0; i < len; i++) {
         _dss[i] = aggs[i].initVal();
-//        AppendableVec av = new AppendableVec(Vec.newKey(), Vec.T_NUM);
-//        _myChunk[i] = new NewChunk(av,0); // remember to close this chunk when done writing.
+        _av[i] = new AppendableVec(_keys[i], Vec.T_NUM);
+        _myChunk[i] = new NewChunk(_av[i],0); // remember to close this chunk when done writing.
       }
     }
 

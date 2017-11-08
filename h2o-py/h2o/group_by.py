@@ -46,9 +46,12 @@ class GroupBy(object):
         - "all" (default) -- any NAs are used in the calculation as-is; which usually results in the final result
           being NA too.
         - "ignore" -- NA entries are not included in calculations, but the total number of entries is taken as the
-          total number of rows. For example, mean([1, 2, 3, nan], na="ignore") will produce 1.5.
+          total number of rows. For example, mean([1, 2, 3, nan], na="ignore") will produce 1.5.  In addition,
+          median([1, 2, 3, nan], na="ignore") will first sort the row as [nan, 1, 2, 3].  Next, the median is the
+          mean of the two middle values in this case producing a median of 1.5.
         - "rm" entries are skipped during the calculations, reducing the total effective count of entries. For
-          example, mean([1, 2, 3, nan], na="rm") will produce 2.
+          example, mean([1, 2, 3, nan], na="rm") will produce 2.  The median in this case will be 2 as the middle
+          value.
 
     Variance (var) and standard deviation (sd) are the sample (not population) statistics.
     """
