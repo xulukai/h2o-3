@@ -12,8 +12,8 @@ def gbm_reproducibility():
     hadoop_namenode_is_accessible = pyunit_utils.hadoop_namenode_is_accessible()
 
     if hadoop_namenode_is_accessible:
-    # run GBM twice with true_reproducibility = True
-        seedv = randint(1,10000000000)
+     #   seedv = randint(1,10000000000)
+        seedv = 9876543221
         ntree = 50
         auc2 = runGBM(seedv, ntree)
         print(auc2)
