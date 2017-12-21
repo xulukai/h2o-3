@@ -7,7 +7,6 @@ from random import randint
 
 # HEXDEV-700: GBM reproducibility issue.
 def gbm_reproducibility():
-
     # Check if we are running inside the H2O network by seeing if we can touch
     # the namenode.
     hadoop_namenode_is_accessible = pyunit_utils.hadoop_namenode_is_accessible()
@@ -16,14 +15,9 @@ def gbm_reproducibility():
     # run GBM twice with true_reproducibility = True
         seedv = randint(1,10000000000)
         ntree = 50
-        auc2 = runGBM(seedv, True, ntree)
+        auc2 = runGBM(seedv, ntree)
+        print(auc2)
 
-        if (randint(1,10) > 5):
-            auc1 = runGBM(seedv, ntree)
-            pyunit_utils.equal_two_arrays(auc1, auc2, 1e-10, True)  # should be equal in this case
-        else:
-            auc3 = runGBM(seedv, ntree)  # threshold should be different this run.
-            assert not(pyunit_utils.equal_two_arrays(auc2, auc3, 1e-10, False)), "parameter true_reproducibility is not working."
     else:
         raise EnvironmentError
 
