@@ -23,10 +23,8 @@ def runGBM(seedV, ntree):
   gbm = H2OGradientBoostingEstimator(distribution='bernoulli', ntrees=ntree, seed= seedV, max_depth = 4,
                                    min_rows = 7, score_tree_interval=ntree)
   gbm.train(x=list(range(2,365)), y="response", training_frame=cars)
-  if repo:
-    print("Model run time (ms) with reproducibility is {0}".format(gbm._model_json["output"]["run_time"]))
-  else:
-    print("Model run time (ms) without reproducibility is {0}".format(gbm._model_json["output"]["run_time"]))
+  print("Model run time (ms) with reproducibility is {0}".format(gbm._model_json["output"]["run_time"]))
+
   auc = pyunit_utils.extract_from_twoDimTable(gbm._model_json['output']['training_metrics']._metric_json['thresholds_and_metric_scores'], 'threshold', takeFirst=False)
   h2o.remove(cars)
   h2o.remove(gbm)
